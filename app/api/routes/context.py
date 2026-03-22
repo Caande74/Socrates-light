@@ -10,4 +10,4 @@ router = APIRouter(dependencies=[Depends(require_api_key)])
 
 @router.post('/get', response_model=ContextResponse)
 def get_context(payload: ContextRequest, db: Session = Depends(db_session)):
-    return get_context_payload(db, payload.query, payload.mode, payload.role)
+    return get_context_payload(db, payload.query, payload.owner_id, payload.mode, payload.role)

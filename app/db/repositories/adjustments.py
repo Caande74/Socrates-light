@@ -14,5 +14,8 @@ def get_adjustment(db: Session, item_id: str) -> Adjustment | None:
     return db.get(Adjustment, item_id)
 
 
-def list_active_adjustments(db: Session) -> list[Adjustment]:
-    return db.query(Adjustment).filter(Adjustment.status == "active").all()
+def list_active_adjustments(db: Session, owner_id: str | None = None) -> list[Adjustment]:
+    query = db.query(Adjustment).filter(Adjustment.status == "active")
+    if owner_id is not None:
+        query = query.filter(Adjustment.owner_id == owner_id)
+    return query.all()

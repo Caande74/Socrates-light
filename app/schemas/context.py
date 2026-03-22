@@ -1,11 +1,18 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+from app.auth.owners import normalize_owner_id
 from app.schemas.common import CoreItemResponse
 
 
 class ContextRequest(BaseModel):
     query: str
+    owner_id: str
     mode: str | None = None
     role: str | None = None
+
+    @field_validator("owner_id", mode="before")
+    @classmethod
+    def validate_owner_id(cls, value: str) -> str:
+        return normalize_owner_id(value)
 
 
 class ContextItemDebug(CoreItemResponse):

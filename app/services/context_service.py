@@ -1,6 +1,8 @@
+import logging
 from app.db.models.feedback import Feedback
 from sqlalchemy.orm import Session
 
+from app.auth.owners import resolve_owner_context
 from app.db.models.relationship import Relationship
 
 from app.db.models.decision import Decision
@@ -36,8 +38,19 @@ LOW_SIGNAL_TAGS = {
     "investeringsbedomning",
 }
 
+logger = logging.getLogger(__name__)
 
-def _normalize(text: str | None) -> str:
+FEEDBACK_GENERIC_TERMS = {
+    "test",
+    "feedback",
+    "minne",
+    "memory",
+}
+
+
+def _normalize(text: str | list[str] | None) -> str:
+    if isinstance(text, list):
+        return " ".join(part.strip() for part in text if part and part.strip()).lower()
     return (text or "").strip().lower()
 
 
@@ -214,7 +227,10 @@ def _tokenize(text: str | None) -> list[str]:
     return _expanded_query_tokens(text)
 
 
-def _tag_list(tags: str | None) -> list[str]:
+def _tag_list(tags: str | list[str] | None) -> list[str]:
+    if isinstance(tags, list):
+        return [tag.strip().lower() for tag in tags if tag and tag.strip()]
+
     raw = _normalize(tags)
     if not raw:
         return []
@@ -262,7 +278,9 @@ def _to_context_item(item, retrieval_path: str, matched_terms: list[str], matche
         "tags": item.tags,
         "confidence": item.confidence,
         "source": item.source,
-        "owner": item.owner,
+        "owner_id": item.owner_id,
+        "owner_name": item.owner_name,
+        "legacy_owner": item.legacy_owner,
         "retrieval_path": retrieval_path,
         "matched_terms": matched_terms,
         "matched_tags": matched_tags,
@@ -442,20 +460,115 @@ def _serialize(final_items: list, direct_ids: set[str], query: str, seed_tags: s
     return serialized
 
 
-def get_context_payload(db: Session, query: str, mode: str | None, role: str | None) -> dict:
-    active_decisions = list_active(db, Decision)
-    active_assumptions = list_active(db, Assumption)
-    active_initiatives = list_active(db, Initiative)
-    active_adjustments = list_active(db, Adjustment)
-    active_patterns = list_active(db, Pattern)
-    active_feedback = list_active(db, Feedback)
+def _feedback_query_tokens(query: str) -> list[str]:
+    return [
+        token
+        for token in _direct_match_tokens(query)
+        if token not in FEEDBACK_GENERIC_TERMS
+    ]
+
+
+def _feedback_match_priority(item, query: str) -> tuple[int, int]:
+    normalized_query = _normalize(query)
+    if not normalized_query:
+        return (0, 0)
+
+    content = _normalize(item.content)
+    title = _normalize(item.title)
+
+    if normalized_query == content:
+        return (4, len(normalized_query))
+
+    if normalized_query == title:
+        return (3, len(normalized_query))
+
+    contains_score = 0
+    if normalized_query in content:
+        contains_score = max(contains_score, 2)
+    if normalized_query in title:
+        contains_score = max(contains_score, 1)
+
+    term_hits = 0
+    for token in _feedback_query_tokens(query):
+        if token in content or token in title:
+            term_hits += 1
+
+    if contains_score or term_hits >= 2:
+        return (2, contains_score + term_hits)
+
+    return (0, 0)
+
+
+def _feedback_term_hits(item, query: str) -> int:
+    content = _normalize(item.content)
+    title = _normalize(item.title)
+
+    hits = 0
+    for token in _feedback_query_tokens(query):
+        if token in content or token in title:
+            hits += 1
+    return hits
+
+
+def _feedback_fallback_score(item, query: str, mode: str | None, role: str | None) -> int:
+    if _feedback_term_hits(item, query) < 2:
+        return 0
+
+    fallback_query = " ".join(_feedback_query_tokens(query))
+    base_score = _base_score_item(item, fallback_query)
+    if base_score <= 0:
+        return 0
+
+    return base_score + _mode_bonus("feedback", mode) + _role_bonus("feedback", role, item)
+
+
+def _select_direct_feedback_items(
+    active_items: list,
+    query: str,
+    mode: str | None,
+    role: str | None,
+    limit: int = 5,
+) -> list:
+    strong_matches = []
+    fallback_matches = []
+
+    for item in active_items:
+        priority, priority_score = _feedback_match_priority(item, query)
+        fallback_score = _feedback_fallback_score(item, query, mode, role)
+
+        if priority > 0:
+            strong_matches.append((priority, priority_score, fallback_score, item))
+            continue
+
+        if fallback_score > 0:
+            fallback_matches.append((fallback_score, item))
+
+    if strong_matches:
+        strong_matches.sort(key=lambda row: (row[0], row[1], row[2]), reverse=True)
+        return [item for _, _, _, item in strong_matches[:limit]]
+
+    fallback_matches.sort(key=lambda row: row[0], reverse=True)
+    return [item for _, item in fallback_matches[:limit]]
+
+
+def get_context_payload(db: Session, query: str, owner_id: str, mode: str | None, role: str | None) -> dict:
+    owner_context = resolve_owner_context(owner_id=owner_id)
+    owner_id = owner_context.owner_id
+    logger.info("runtime_context_get owner_id=%s owner_name=%s", owner_id, owner_context.owner_name)
+
+    active_decisions = list_active(db, Decision, owner_id)
+    active_assumptions = list_active(db, Assumption, owner_id)
+    active_initiatives = list_active(db, Initiative, owner_id)
+    active_adjustments = list_active(db, Adjustment, owner_id)
+    active_patterns = list_active(db, Pattern, owner_id)
+    active_feedback = list_active(db, Feedback, owner_id)
 
     direct_decisions = _select_direct_items(active_decisions, "decision", query, mode, role)
     direct_assumptions = _select_direct_items(active_assumptions, "assumption", query, mode, role)
     direct_initiatives = _select_direct_items(active_initiatives, "initiative", query, mode, role)
     direct_adjustments = _select_direct_items(active_adjustments, "adjustment", query, mode, role)
     direct_patterns = _select_direct_items(active_patterns, "pattern", query, mode, role)
-    direct_feedback = _select_direct_items(active_feedback, "feedback", query, mode, role)
+    direct_feedback = _select_direct_feedback_items(active_feedback, query, mode, role)
 
     direct_map = {
         "decision": direct_decisions,

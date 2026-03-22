@@ -14,5 +14,8 @@ def get_pattern(db: Session, item_id: str) -> Pattern | None:
     return db.get(Pattern, item_id)
 
 
-def list_active_patterns(db: Session) -> list[Pattern]:
-    return db.query(Pattern).filter(Pattern.status == "active").all()
+def list_active_patterns(db: Session, owner_id: str | None = None) -> list[Pattern]:
+    query = db.query(Pattern).filter(Pattern.status == "active")
+    if owner_id is not None:
+        query = query.filter(Pattern.owner_id == owner_id)
+    return query.all()

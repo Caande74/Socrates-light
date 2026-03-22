@@ -3,6 +3,7 @@ __pycache__/
 .venv/
 .env
 runtime.db
+runtime_before_restore_*.db
 .pytest_cache/
 .coverage
 .DS_Store

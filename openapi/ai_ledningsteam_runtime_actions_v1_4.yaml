@@ -1,0 +1,558 @@
+openapi: 3.1.0
+info:
+  title: AI-ledningsteamet Runtime API
+  version: 1.4.0
+  description: Runtime context read endpoint plus write endpoints for feedback, adjustments, patterns, assumptions and initiatives for AI-ledningsteamet V3
+
+servers:
+  - url: https://tellurous-emmanuel-intercranial.ngrok-free.dev
+
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Health check
+      description: Returns basic service health information.
+      responses:
+        "200":
+          description: Service is healthy
+
+  /context/get:
+    post:
+      operationId: getRuntimeContext
+      summary: Get runtime context for a user query
+      description: Returns relevant decisions, assumptions, initiatives, adjustments, patterns, feedback, and guidance for the query within the required owner_id user scope. No implicit default owner is applied.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContextRequest"
+      responses:
+        "200":
+          description: Runtime context retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContextResponse"
+
+  /feedback:
+    post:
+      operationId: createRuntimeFeedback
+      summary: Store feedback or a learning signal in runtime
+      description: Creates a feedback item linked to a target object or case within the required owner_id user scope. No implicit default owner is applied.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeedbackCreate"
+      responses:
+        "200":
+          description: Feedback stored successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedbackResponse"
+
+  /adjustments:
+    post:
+      operationId: createRuntimeAdjustment
+      summary: Store an adjustment in runtime
+      description: Creates an adjustment that changes how future recommendations or assessments should be shaped within the required owner_id user scope. No implicit default owner is applied.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdjustmentCreate"
+      responses:
+        "200":
+          description: Adjustment stored successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdjustmentResponse"
+
+  /patterns:
+    post:
+      operationId: createRuntimePattern
+      summary: Store a recurring pattern in runtime
+      description: Creates a pattern representing a recurring risk, bottleneck, or repeated observation that should influence future assessments within the required owner_id user scope. No implicit default owner is applied.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatternCreate"
+      responses:
+        "200":
+          description: Pattern stored successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PatternResponse"
+
+  /assumptions:
+    post:
+      operationId: createRuntimeAssumption
+      summary: Store an assumption in runtime
+      description: Creates a strategic or case-related assumption that should be tracked over time within the required owner_id user scope. No implicit default owner is applied.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssumptionCreate"
+      responses:
+        "200":
+          description: Assumption stored successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssumptionResponse"
+
+  /initiatives:
+    post:
+      operationId: createRuntimeInitiative
+      summary: Store an initiative in runtime
+      description: Creates an active initiative, focus area or workstream that should be tracked in runtime within the required owner_id user scope. No implicit default owner is applied.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InitiativeCreate"
+      responses:
+        "200":
+          description: Initiative stored successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InitiativeResponse"
+
+components:
+  schemas:
+    ContextRequest:
+      type: object
+      required:
+        - query
+        - owner_id
+        - mode
+        - role
+      properties:
+        query:
+          type: string
+          description: User question or working query
+        owner_id:
+          type: string
+          description: Required user scope for isolated read access. The runtime only retrieves context for this specific user and never applies a default owner.
+        mode:
+          type: string
+          enum:
+            - analysis
+            - execution
+            - strategy
+          description: Reasoning mode for context retrieval
+        role:
+          type: string
+          enum:
+            - investeringsradgivare
+            - operator
+            - stabschef
+          description: Role profile for retrieval weighting
+
+    ContextItem:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        status:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+          nullable: true
+        confidence:
+          type: number
+        source:
+          type: string
+        owner_id:
+          type: string
+        retrieval_path:
+          type: string
+          enum:
+            - direct
+            - expanded
+        matched_terms:
+          type: array
+          items:
+            type: string
+        matched_tags:
+          type: array
+          items:
+            type: string
+
+    Guidance:
+      type: object
+      properties:
+        adjustments:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContextItem"
+        patterns:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContextItem"
+
+    ContextResponse:
+      type: object
+      properties:
+        query:
+          type: string
+        decisions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContextItem"
+        assumptions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContextItem"
+        initiatives:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContextItem"
+        adjustments:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContextItem"
+        patterns:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContextItem"
+        feedback:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContextItem"
+        guidance:
+          $ref: "#/components/schemas/Guidance"
+
+    FeedbackCreate:
+      type: object
+      required:
+        - content
+        - owner_id
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        status:
+          type: string
+          default: active
+        tags:
+          type: array
+          items:
+            type: string
+          nullable: true
+        confidence:
+          type: number
+        source:
+          type: string
+        owner_id:
+          type: string
+          description: Required user scope for isolated write access. The new feedback item is stored only for this user and no implicit default owner is used.
+        target_type:
+          type: string
+        target_id:
+          type: string
+        signal:
+          type: string
+        severity:
+          type: string
+
+    FeedbackResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        status:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+          nullable: true
+        confidence:
+          type: number
+        source:
+          type: string
+        owner_id:
+          type: string
+        target_type:
+          type: string
+        target_id:
+          type: string
+        signal:
+          type: string
+        severity:
+          type: string
+
+    AdjustmentCreate:
+      type: object
+      required:
+        - content
+        - owner_id
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        status:
+          type: string
+          default: active
+        tags:
+          type: array
+          items:
+            type: string
+          nullable: true
+        confidence:
+          type: number
+        source:
+          type: string
+        owner_id:
+          type: string
+          description: Required user scope for isolated write access. The new adjustment is stored only for this user and no implicit default owner is used.
+        target_scope:
+          type: string
+        target_name:
+          type: string
+        adjustment_type:
+          type: string
+        instruction_delta:
+          type: string
+
+    AdjustmentResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        status:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+          nullable: true
+        confidence:
+          type: number
+        source:
+          type: string
+        owner_id:
+          type: string
+        target_scope:
+          type: string
+        target_name:
+          type: string
+        adjustment_type:
+          type: string
+        instruction_delta:
+          type: string
+
+    PatternCreate:
+      type: object
+      required:
+        - content
+        - owner_id
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        status:
+          type: string
+          default: active
+        tags:
+          type: array
+          items:
+            type: string
+          nullable: true
+        confidence:
+          type: number
+        source:
+          type: string
+        owner_id:
+          type: string
+          description: Required user scope for isolated write access. The new pattern is stored only for this user and no implicit default owner is used.
+        pattern_type:
+          type: string
+
+    PatternResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        status:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+          nullable: true
+        confidence:
+          type: number
+        source:
+          type: string
+        owner_id:
+          type: string
+        pattern_type:
+          type: string
+
+    AssumptionCreate:
+      type: object
+      required:
+        - content
+        - owner_id
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        status:
+          type: string
+          default: active
+        tags:
+          type: array
+          items:
+            type: string
+          nullable: true
+        confidence:
+          type: number
+        source:
+          type: string
+        owner_id:
+          type: string
+          description: Required user scope for isolated write access. The new assumption is stored only for this user and no implicit default owner is used.
+        falsification_signal:
+          type: string
+        affected_items:
+          type: string
+
+    AssumptionResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        status:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+          nullable: true
+        confidence:
+          type: number
+        source:
+          type: string
+        owner_id:
+          type: string
+        falsification_signal:
+          type: string
+        affected_items:
+          type: string
+
+    InitiativeCreate:
+      type: object
+      required:
+        - content
+        - owner_id
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        status:
+          type: string
+          default: active
+        tags:
+          type: array
+          items:
+            type: string
+          nullable: true
+        confidence:
+          type: number
+        source:
+          type: string
+        owner_id:
+          type: string
+          description: Required user scope for isolated write access. The new initiative is stored only for this user and no implicit default owner is used.
+        objective:
+          type: string
+        stage:
+          type: string
+        next_step:
+          type: string
+        blockers:
+          type: string
+
+    InitiativeResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        status:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+          nullable: true
+        confidence:
+          type: number
+        source:
+          type: string
+        owner_id:
+          type: string
+        objective:
+          type: string
+        stage:
+          type: string
+        next_step:
+          type: string
+        blockers:
+          type: string

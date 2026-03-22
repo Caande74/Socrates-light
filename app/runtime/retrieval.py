@@ -11,12 +11,13 @@ from app.runtime.ranking import score_text_match
 def retrieve_relevant_decisions(
     db: Session,
     query: str,
+    owner_id: str | None = None,
     mode: str | None = None,
     role: str | None = None,
     tags: list[str] | None = None,
     limit: int = 5,
 ):
-    decisions = list_active_decisions(db)
+    decisions = list_active_decisions(db, owner_id)
     ranked = []
 
     for decision in decisions:
@@ -45,12 +46,13 @@ def retrieve_relevant_decisions(
 def retrieve_relevant_assumptions(
     db: Session,
     query: str,
+    owner_id: str | None = None,
     mode: str | None = None,
     role: str | None = None,
     tags: list[str] | None = None,
     limit: int = 5,
 ):
-    assumptions = list_active_assumptions(db)
+    assumptions = list_active_assumptions(db, owner_id)
     ranked = []
 
     for assumption in assumptions:
@@ -78,12 +80,13 @@ def retrieve_relevant_assumptions(
 def retrieve_relevant_preferences(
     db: Session,
     query: str,
+    owner_id: str | None = None,
     mode: str | None = None,
     role: str | None = None,
     tags: list[str] | None = None,
     limit: int = 5,
 ):
-    preferences = list_active_preferences(db)
+    preferences = list_active_preferences(db, owner_id)
     ranked = []
 
     for preference in preferences:
@@ -115,12 +118,13 @@ def retrieve_relevant_preferences(
 def retrieve_relevant_goals(
     db: Session,
     query: str,
+    owner_id: str | None = None,
     mode: str | None = None,
     role: str | None = None,
     tags: list[str] | None = None,
     limit: int = 5,
 ):
-    goals = list_active_goals(db)
+    goals = list_active_goals(db, owner_id)
     ranked = []
 
     for goal in goals:
@@ -147,12 +151,13 @@ def retrieve_relevant_goals(
 def retrieve_relevant_initiatives(
     db: Session,
     query: str,
+    owner_id: str | None = None,
     mode: str | None = None,
     role: str | None = None,
     tags: list[str] | None = None,
     limit: int = 5,
 ):
-    initiatives = list_active_initiatives(db)
+    initiatives = list_active_initiatives(db, owner_id)
     ranked = []
 
     for initiative in initiatives:

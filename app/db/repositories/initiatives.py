@@ -14,5 +14,8 @@ def get_initiative(db: Session, item_id: str) -> Initiative | None:
     return db.get(Initiative, item_id)
 
 
-def list_active_initiatives(db: Session) -> list[Initiative]:
-    return db.query(Initiative).filter(Initiative.status == "active").all()
+def list_active_initiatives(db: Session, owner_id: str | None = None) -> list[Initiative]:
+    query = db.query(Initiative).filter(Initiative.status == "active")
+    if owner_id is not None:
+        query = query.filter(Initiative.owner_id == owner_id)
+    return query.all()

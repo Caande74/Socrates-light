@@ -14,6 +14,8 @@ def get_preference(db: Session, item_id: str) -> Preference | None:
     return db.get(Preference, item_id)
 
 
-def list_active_preferences(db: Session) -> list[Preference]:
-    return db.query(Preference).filter(Preference.status == "active").all()
-    return db.query(Preference).filter(Preference.status == "active").all()
+def list_active_preferences(db: Session, owner_id: str | None = None) -> list[Preference]:
+    query = db.query(Preference).filter(Preference.status == "active")
+    if owner_id is not None:
+        query = query.filter(Preference.owner_id == owner_id)
+    return query.all()

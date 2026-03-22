@@ -13,5 +13,8 @@ def get_item(db: Session, model, item_id: str):
     return db.get(model, item_id)
 
 
-def list_active(db: Session, model):
-    return db.query(model).filter(model.status == "active").all()
+def list_active(db: Session, model, owner_id: str | None = None):
+    query = db.query(model).filter(model.status == "active")
+    if owner_id is not None and hasattr(model, "owner_id"):
+        query = query.filter(model.owner_id == owner_id)
+    return query.all()
