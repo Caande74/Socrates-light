@@ -13,7 +13,7 @@ class AssumptionCreate(RuntimeSchemaBase):
     tags: TagList = None
     confidence: Optional[float] = None
     source: Optional[str] = None
-    owner_id: str = Field(..., min_length=1)
+    owner_id: str | None = Field(default=None, min_length=1)
     falsification_signal: Optional[str] = None
     affected_items: Optional[str] = None
 

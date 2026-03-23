@@ -26,6 +26,7 @@ KNOWN_OWNERS = (
         owner_id=CALLE_OWNER_ID,
         owner_name=CALLE_OWNER_NAME,
         legacy_owners=("calle", "alfa 22"),
+        auth_subjects=("subject-calle",),
     ),
 )
 
@@ -74,17 +75,23 @@ def resolve_owner_context(
     authenticated subject and omit the prompt-level owner_id. This module does
     not infer identities from chat text or free-form content.
     """
-    if owner_id is None:
-        mapped_owner_id = AUTH_SUBJECT_TO_OWNER_ID.get(authenticated_subject or "")
-        if mapped_owner_id is None:
-            raise ValueError("owner_id is required until auth/session mapping is wired in")
-        owner_id = mapped_owner_id
-
     normalized_owner_id = normalize_owner_id(owner_id)
-    record = OWNER_BY_ID.get(normalized_owner_id)
+    mapped_owner_id = AUTH_SUBJECT_TO_OWNER_ID.get(authenticated_subject or "") if authenticated_subject else None
+
+    if authenticated_subject and mapped_owner_id is None:
+        raise PermissionError("authenticated_subject is not mapped to a runtime owner")
+
+    if mapped_owner_id and normalized_owner_id and mapped_owner_id != normalized_owner_id:
+        raise PermissionError("authenticated_subject does not match owner_id")
+
+    resolved_owner_id = mapped_owner_id or normalized_owner_id
+    if resolved_owner_id is None:
+        raise ValueError("owner_id or authenticated_subject is required")
+
+    record = OWNER_BY_ID.get(resolved_owner_id)
 
     return OwnerContext(
-        owner_id=normalized_owner_id,
+        owner_id=resolved_owner_id,
         owner_name=record.owner_name if record else None,
         legacy_owner=legacy_owner,
     )

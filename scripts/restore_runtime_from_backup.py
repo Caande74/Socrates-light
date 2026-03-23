@@ -31,6 +31,19 @@ RESTORE_TABLES = {
     "decisions": ["decision_date", "rationale", "impact_scope"],
 }
 
+SOURCE_OWNER_MODES = {
+    "calle": {
+        "where_clause": "owner = ?",
+        "params": ("calle",),
+        "legacy_owner": "calle",
+    },
+    "empty-owner": {
+        "where_clause": "owner IS NULL OR trim(owner) = ''",
+        "params": (),
+        "legacy_owner": "empty-owner",
+    },
+}
+
 
 def table_exists(connection: sqlite3.Connection, table_name: str) -> bool:
     row = connection.execute(
@@ -53,13 +66,14 @@ def ensure_target_columns(connection: sqlite3.Connection, table_name: str) -> No
         connection.execute(f"ALTER TABLE {table_name} ADD COLUMN legacy_owner TEXT")
 
 
-def restore_runtime_from_backup(source_db: str, target_db: str) -> dict[str, int]:
+def restore_runtime_from_backup(source_db: str, target_db: str, source_owner_mode: str = "calle") -> dict[str, int]:
     source_connection = sqlite3.connect(source_db)
     target_connection = sqlite3.connect(target_db)
     source_connection.row_factory = sqlite3.Row
     target_connection.row_factory = sqlite3.Row
 
     imported_counts: dict[str, int] = {}
+    owner_mode = SOURCE_OWNER_MODES[source_owner_mode]
 
     try:
         for table_name, extra_columns in RESTORE_TABLES.items():
@@ -81,9 +95,9 @@ def restore_runtime_from_backup(source_db: str, target_db: str) -> dict[str, int
                 f"""
                 SELECT {", ".join(source_columns)}
                 FROM {table_name}
-                WHERE owner = ?
+                WHERE {owner_mode["where_clause"]}
                 """,
-                ("calle",),
+                owner_mode["params"],
             ).fetchall()
 
             existing_ids = {
@@ -97,7 +111,7 @@ def restore_runtime_from_backup(source_db: str, target_db: str) -> dict[str, int
                     continue
 
                 row_values = [row[column] for column in SHARED_COLUMNS]
-                row_values.extend([CALLE_OWNER_ID, CALLE_OWNER_NAME, "calle"])
+                row_values.extend([CALLE_OWNER_ID, CALLE_OWNER_NAME, owner_mode["legacy_owner"]])
                 row_values.extend(row[column] for column in extra_columns)
                 rows_to_insert.append(tuple(row_values))
 
@@ -126,9 +140,15 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Restore selected runtime tables from a backup SQLite DB.")
     parser.add_argument("--source-db", required=True, help="Path to the backup SQLite DB")
     parser.add_argument("--target-db", required=True, help="Path to the current runtime SQLite DB")
+    parser.add_argument(
+        "--source-owner-mode",
+        choices=sorted(SOURCE_OWNER_MODES.keys()),
+        default="calle",
+        help="Which owner bucket to restore from the source database",
+    )
     args = parser.parse_args()
 
-    restore_runtime_from_backup(args.source_db, args.target_db)
+    restore_runtime_from_backup(args.source_db, args.target_db, source_owner_mode=args.source_owner_mode)
 
 
 if __name__ == "__main__":

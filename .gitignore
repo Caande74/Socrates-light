@@ -3,6 +3,9 @@ __pycache__/
 .venv/
 .env
 runtime.db
+runtime.db-shm
+runtime.db-wal
+test_runtime.db
 runtime_before_restore_*.db
 .pytest_cache/
 .coverage

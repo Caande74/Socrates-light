@@ -13,7 +13,7 @@ class FeedbackCreate(RuntimeSchemaBase):
     tags: TagList = None
     confidence: Optional[float] = None
     source: Optional[str] = None
-    owner_id: str = Field(..., min_length=1)
+    owner_id: str | None = Field(default=None, min_length=1)
     target_type: Optional[str] = None
     target_id: Optional[str] = None
     signal: Optional[str] = None

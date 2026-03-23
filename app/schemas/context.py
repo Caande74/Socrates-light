@@ -5,13 +5,13 @@ from app.schemas.common import CoreItemResponse
 
 class ContextRequest(BaseModel):
     query: str
-    owner_id: str
+    owner_id: str | None = None
     mode: str | None = None
     role: str | None = None
 
     @field_validator("owner_id", mode="before")
     @classmethod
-    def validate_owner_id(cls, value: str) -> str:
+    def validate_owner_id(cls, value: str | None) -> str | None:
         return normalize_owner_id(value)
 
 

@@ -13,7 +13,7 @@ class AdjustmentCreate(RuntimeSchemaBase):
     tags: TagList = None
     confidence: Optional[float] = None
     source: Optional[str] = None
-    owner_id: str = Field(..., min_length=1)
+    owner_id: str | None = Field(default=None, min_length=1)
     target_scope: Optional[str] = None
     target_name: Optional[str] = None
     adjustment_type: Optional[str] = None

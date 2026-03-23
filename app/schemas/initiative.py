@@ -13,7 +13,7 @@ class InitiativeCreate(RuntimeSchemaBase):
     tags: TagList = None
     confidence: Optional[float] = None
     source: Optional[str] = None
-    owner_id: str = Field(..., min_length=1)
+    owner_id: str | None = Field(default=None, min_length=1)
     objective: Optional[str] = None
     stage: Optional[str] = None
     next_step: Optional[str] = None

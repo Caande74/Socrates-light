@@ -10,6 +10,7 @@ from scripts.migrate_runtime_owners import main as migrate_runtime_owners
 
 
 API_HEADERS = {"x-api-key": settings.api_key}
+CALLE_AUTH_HEADERS = {**API_HEADERS, "x-authenticated-subject": "subject-calle"}
 OWNER_A_ID = "11111111-1111-1111-1111-111111111111"
 OWNER_B_ID = "22222222-2222-2222-2222-222222222222"
 RETRIEVAL_OWNER_ID = "33333333-3333-3333-3333-333333333333"
@@ -24,7 +25,6 @@ def _client() -> TestClient:
 @pytest.mark.parametrize(
     ("path", "payload"),
     [
-        ("/context/get", {"query": "battery risk"}),
         ("/feedback", {"content": "battery risk feedback"}),
         ("/adjustments", {"content": "battery risk adjustment"}),
         ("/patterns", {"content": "battery risk pattern"}),
@@ -37,9 +37,8 @@ def test_owner_id_is_required_on_context_and_scoped_write_endpoints(path: str, p
 
     response = client.post(path, headers=API_HEADERS, json=payload)
 
-    assert response.status_code == 422
-    errors = response.json()["detail"]
-    assert any(error["loc"][-1] == "owner_id" for error in errors)
+    assert response.status_code == 400
+    assert response.json()["detail"] == "owner_id or authenticated_subject is required"
 
 
 def test_context_and_writes_are_fully_isolated_by_owner_id():
@@ -209,6 +208,305 @@ def test_context_and_writes_are_fully_isolated_by_owner_id():
     assert ids(payload_a["guidance"], "patterns") == expected_a["patterns"]
     assert ids(payload_b["guidance"], "adjustments") == expected_b["adjustments"]
     assert ids(payload_b["guidance"], "patterns") == expected_b["patterns"]
+
+
+def test_context_get_supports_explicit_owner_id_without_authenticated_subject():
+    client = _client()
+    stored_text = "explicit owner context lookup"
+
+    write_response = client.post(
+        "/feedback",
+        headers=API_HEADERS,
+        json={
+            "owner_id": OWNER_A_ID,
+            "content": stored_text,
+        },
+    )
+    assert write_response.status_code == 200
+
+    response = client.post(
+        "/context/get",
+        headers=API_HEADERS,
+        json={
+            "query": stored_text,
+            "owner_id": OWNER_A_ID,
+            "mode": "analysis",
+            "role": "operator",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["feedback"]
+    assert response.json()["feedback"][0]["id"] == write_response.json()["id"]
+
+
+def test_context_get_supports_authenticated_subject_without_owner_id_in_body():
+    client = _client()
+    stored_text = "authenticated subject context lookup"
+
+    write_response = client.post(
+        "/feedback",
+        headers=API_HEADERS,
+        json={
+            "owner_id": CALLE_OWNER_ID,
+            "content": stored_text,
+        },
+    )
+    assert write_response.status_code == 200
+
+    response = client.post(
+        "/context/get",
+        headers=CALLE_AUTH_HEADERS,
+        json={
+            "query": stored_text,
+            "mode": "analysis",
+            "role": "operator",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["feedback"]
+    assert response.json()["feedback"][0]["id"] == write_response.json()["id"]
+
+
+def test_server_side_authenticated_subject_is_attached_from_api_key_config(monkeypatch):
+    client = _client()
+    stored_text = "server side attached subject lookup"
+    monkeypatch.setattr(settings, "api_authenticated_subject", "subject-calle")
+
+    write_response = client.post(
+        "/feedback",
+        headers=API_HEADERS,
+        json={
+            "owner_id": CALLE_OWNER_ID,
+            "content": stored_text,
+        },
+    )
+    assert write_response.status_code == 200
+
+    response = client.post(
+        "/context/get",
+        headers=API_HEADERS,
+        json={
+            "query": stored_text,
+            "mode": "analysis",
+            "role": "operator",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["feedback"]
+    assert response.json()["feedback"][0]["id"] == write_response.json()["id"]
+
+
+def test_server_side_authenticated_subject_has_priority_over_temporary_header_bridge(monkeypatch):
+    client = _client()
+    stored_text = "server side subject wins over header"
+    monkeypatch.setattr(settings, "api_authenticated_subject", "subject-calle")
+
+    write_response = client.post(
+        "/feedback",
+        headers=API_HEADERS,
+        json={
+            "owner_id": CALLE_OWNER_ID,
+            "content": stored_text,
+        },
+    )
+    assert write_response.status_code == 200
+
+    response = client.post(
+        "/context/get",
+        headers={**API_HEADERS, "x-authenticated-subject": "unmapped-subject"},
+        json={
+            "query": stored_text,
+            "mode": "analysis",
+            "role": "operator",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["feedback"]
+    assert response.json()["feedback"][0]["id"] == write_response.json()["id"]
+
+
+def test_server_side_authenticated_subject_is_attached_from_trusted_upstream_header(monkeypatch):
+    client = _client()
+    stored_text = "trusted upstream subject lookup"
+    monkeypatch.setattr(settings, "trusted_authenticated_subject_header", "x-upstream-subject")
+
+    write_response = client.post(
+        "/feedback",
+        headers=API_HEADERS,
+        json={
+            "owner_id": CALLE_OWNER_ID,
+            "content": stored_text,
+        },
+    )
+    assert write_response.status_code == 200
+
+    response = client.post(
+        "/context/get",
+        headers={**API_HEADERS, "x-upstream-subject": "subject-calle"},
+        json={
+            "query": stored_text,
+            "mode": "analysis",
+            "role": "operator",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["feedback"]
+    assert response.json()["feedback"][0]["id"] == write_response.json()["id"]
+
+
+def test_trusted_upstream_subject_has_priority_over_api_fallback(monkeypatch):
+    client = _client()
+    stored_text = "trusted upstream subject wins over api fallback"
+
+    write_response = client.post(
+        "/feedback",
+        headers=API_HEADERS,
+        json={
+            "owner_id": CALLE_OWNER_ID,
+            "content": stored_text,
+        },
+    )
+    assert write_response.status_code == 200
+
+    monkeypatch.setattr(settings, "trusted_authenticated_subject_header", "x-upstream-subject")
+    monkeypatch.setattr(settings, "api_authenticated_subject", "unmapped-subject")
+
+    response = client.post(
+        "/context/get",
+        headers={**API_HEADERS, "x-upstream-subject": "subject-calle"},
+        json={
+            "query": stored_text,
+            "mode": "analysis",
+            "role": "operator",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["feedback"]
+    assert response.json()["feedback"][0]["id"] == write_response.json()["id"]
+
+
+def test_context_get_returns_403_on_authenticated_subject_owner_mismatch():
+    client = _client()
+
+    response = client.post(
+        "/context/get",
+        headers=CALLE_AUTH_HEADERS,
+        json={
+            "query": "mismatch test",
+            "owner_id": OWNER_A_ID,
+            "mode": "analysis",
+            "role": "operator",
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "authenticated_subject does not match owner_id"
+
+
+def test_context_get_returns_clear_error_when_owner_is_missing_everywhere():
+    client = _client()
+
+    response = client.post(
+        "/context/get",
+        headers=API_HEADERS,
+        json={
+            "query": "missing owner context",
+            "mode": "analysis",
+            "role": "operator",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "owner_id or authenticated_subject is required"
+
+
+@pytest.mark.parametrize(
+    ("path", "payload"),
+    [
+        ("/feedback", {"content": "write explicit owner feedback"}),
+        ("/adjustments", {"content": "write explicit owner adjustment"}),
+        ("/patterns", {"content": "write explicit owner pattern"}),
+        ("/assumptions", {"content": "write explicit owner assumption"}),
+        ("/initiatives", {"content": "write explicit owner initiative"}),
+    ],
+)
+def test_write_endpoints_support_explicit_owner_id_without_authenticated_subject(path: str, payload: dict):
+    client = _client()
+
+    response = client.post(
+        path,
+        headers=API_HEADERS,
+        json={
+            **payload,
+            "owner_id": OWNER_A_ID,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["owner_id"] == OWNER_A_ID
+
+
+@pytest.mark.parametrize(
+    ("path", "payload"),
+    [
+        ("/feedback", {"content": "write subject feedback"}),
+        ("/adjustments", {"content": "write subject adjustment"}),
+        ("/patterns", {"content": "write subject pattern"}),
+        ("/assumptions", {"content": "write subject assumption"}),
+        ("/initiatives", {"content": "write subject initiative"}),
+    ],
+)
+def test_write_endpoints_support_authenticated_subject_without_owner_id(path: str, payload: dict):
+    client = _client()
+
+    response = client.post(
+        path,
+        headers=CALLE_AUTH_HEADERS,
+        json=payload,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["owner_id"] == CALLE_OWNER_ID
+    assert response.json()["owner_name"] == CALLE_OWNER_NAME
+
+
+@pytest.mark.parametrize("path", ["/feedback", "/adjustments", "/patterns", "/assumptions", "/initiatives"])
+def test_write_endpoints_return_403_on_authenticated_subject_owner_mismatch(path: str):
+    client = _client()
+
+    response = client.post(
+        path,
+        headers=CALLE_AUTH_HEADERS,
+        json={
+            "content": "mismatch write",
+            "owner_id": OWNER_A_ID,
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "authenticated_subject does not match owner_id"
+
+
+@pytest.mark.parametrize("path", ["/feedback", "/adjustments", "/patterns", "/assumptions", "/initiatives"])
+def test_write_endpoints_return_clear_error_when_owner_is_missing_everywhere(path: str):
+    client = _client()
+
+    response = client.post(
+        path,
+        headers=API_HEADERS,
+        json={
+            "content": "missing owner write",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "owner_id or authenticated_subject is required"
 
 
 def test_feedback_write_accepts_missing_tags():
