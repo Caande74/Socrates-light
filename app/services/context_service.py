@@ -10,7 +10,8 @@ from app.db.models.assumption import Assumption
 from app.db.models.initiative import Initiative
 from app.db.models.adjustment import Adjustment
 from app.db.models.pattern import Pattern
-from app.db.repositories.common import list_active
+from app.db.repositories.common import list_retrievable
+from app.runtime.statuses import status_rank_adjustment
 
 
 GENERIC_TAGS = {
@@ -407,6 +408,7 @@ def _select_direct_items(
             base_score
             + _mode_bonus(model_name, mode)
             + _role_bonus(model_name, role, item)
+            + status_rank_adjustment(item.status)
         )
         scored.append((score, item))
 
@@ -519,7 +521,12 @@ def _feedback_fallback_score(item, query: str, mode: str | None, role: str | Non
     if base_score <= 0:
         return 0
 
-    return base_score + _mode_bonus("feedback", mode) + _role_bonus("feedback", role, item)
+    return (
+        base_score
+        + _mode_bonus("feedback", mode)
+        + _role_bonus("feedback", role, item)
+        + status_rank_adjustment(item.status)
+    )
 
 
 def _select_direct_feedback_items(
@@ -556,12 +563,12 @@ def get_context_payload(db: Session, query: str, owner_id: str, mode: str | None
     owner_id = owner_context.owner_id
     logger.info("runtime_context_get owner_id=%s owner_name=%s", owner_id, owner_context.owner_name)
 
-    active_decisions = list_active(db, Decision, owner_id)
-    active_assumptions = list_active(db, Assumption, owner_id)
-    active_initiatives = list_active(db, Initiative, owner_id)
-    active_adjustments = list_active(db, Adjustment, owner_id)
-    active_patterns = list_active(db, Pattern, owner_id)
-    active_feedback = list_active(db, Feedback, owner_id)
+    active_decisions = list_retrievable(db, Decision, owner_id)
+    active_assumptions = list_retrievable(db, Assumption, owner_id)
+    active_initiatives = list_retrievable(db, Initiative, owner_id)
+    active_adjustments = list_retrievable(db, Adjustment, owner_id)
+    active_patterns = list_retrievable(db, Pattern, owner_id)
+    active_feedback = list_retrievable(db, Feedback, owner_id)
 
     direct_decisions = _select_direct_items(active_decisions, "decision", query, mode, role)
     direct_assumptions = _select_direct_items(active_assumptions, "assumption", query, mode, role)

@@ -7,13 +7,14 @@ from app.db.repositories.case_outcomes import create_case_outcome as repo_create
 from app.db.repositories.feedback import (
     create_feedback as repo_create_feedback,
     find_active_feedback_by_content,
+    update_feedback_status as repo_update_feedback_status,
 )
 from app.db.repositories.adjustments import create_adjustment as repo_create_adjustment
 from app.db.repositories.patterns import create_pattern as repo_create_pattern
 
 from app.schemas.case_outcome import CaseOutcomeCreate
 from app.schemas.common import serialize_tags
-from app.schemas.feedback import FeedbackCreate
+from app.schemas.feedback import FeedbackCreate, FeedbackStatusUpdate
 from app.schemas.adjustment import AdjustmentCreate
 from app.schemas.pattern import PatternCreate
 
@@ -51,6 +52,12 @@ def create_feedback(db: Session, payload: FeedbackCreate):
 
     logger.info("runtime_feedback_create owner_id=%s owner_name=%s", data["owner_id"], data["owner_name"])
     return repo_create_feedback(db, data)
+
+
+def update_feedback_status(db: Session, item_id: str, payload: FeedbackStatusUpdate):
+    data = payload.model_dump()
+    owner_context = resolve_owner_context(owner_id=data["owner_id"])
+    return repo_update_feedback_status(db, item_id, data["status"], owner_context.owner_id)
 
 
 def create_adjustment(db: Session, payload: AdjustmentCreate):

@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 from app.db.models.initiative import Initiative
+from app.db.repositories.common import update_item_status
 
 
 def create_initiative(db: Session, payload: dict) -> Initiative:
@@ -19,3 +20,12 @@ def list_active_initiatives(db: Session, owner_id: str | None = None) -> list[In
     if owner_id is not None:
         query = query.filter(Initiative.owner_id == owner_id)
     return query.all()
+
+
+def update_initiative_status(
+    db: Session,
+    item_id: str,
+    status: str,
+    owner_id: str | None = None,
+) -> Initiative | None:
+    return update_item_status(db, Initiative, item_id, status, owner_id)

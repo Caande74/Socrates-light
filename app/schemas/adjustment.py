@@ -1,6 +1,6 @@
 from typing import Optional
-from app.schemas.common import CoreItemResponse, RuntimeSchemaBase, TagList
-from pydantic import ConfigDict, Field
+from app.schemas.common import CoreItemResponse, RuntimeSchemaBase, TagList, validate_status
+from pydantic import ConfigDict, Field, field_validator
 
 
 class AdjustmentCreate(RuntimeSchemaBase):
@@ -18,6 +18,11 @@ class AdjustmentCreate(RuntimeSchemaBase):
     target_name: Optional[str] = None
     adjustment_type: Optional[str] = None
     instruction_delta: Optional[str] = None
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def validate_item_status(cls, value: Optional[str]) -> str:
+        return validate_status(value)
 
 
 class AdjustmentResponse(CoreItemResponse):

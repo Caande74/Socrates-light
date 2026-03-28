@@ -2,6 +2,7 @@ from typing import Any, Optional
 from uuid import UUID
 
 from app.auth.owners import normalize_owner_id
+from app.runtime.statuses import validate_memory_status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
@@ -27,6 +28,12 @@ def serialize_tags(value: TagList) -> str | None:
     if not value:
         return None
     return ",".join(value)
+
+
+def validate_status(value: Any, *, allow_invalid: bool = False) -> str:
+    if value is None:
+        value = "active"
+    return validate_memory_status(str(value), allow_invalid=allow_invalid)
 
 
 class RuntimeSchemaBase(BaseModel):

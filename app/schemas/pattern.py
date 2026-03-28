@@ -1,6 +1,6 @@
 from typing import Optional
-from app.schemas.common import CoreItemResponse, RuntimeSchemaBase, TagList
-from pydantic import ConfigDict, Field
+from app.schemas.common import CoreItemResponse, RuntimeSchemaBase, TagList, validate_status
+from pydantic import ConfigDict, Field, field_validator
 
 
 class PatternCreate(RuntimeSchemaBase):
@@ -15,6 +15,11 @@ class PatternCreate(RuntimeSchemaBase):
     source: Optional[str] = None
     owner_id: str | None = Field(default=None, min_length=1)
     pattern_type: Optional[str] = None
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def validate_item_status(cls, value: Optional[str]) -> str:
+        return validate_status(value)
 
 
 class PatternResponse(CoreItemResponse):

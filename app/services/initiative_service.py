@@ -5,9 +5,10 @@ from app.auth.owners import resolve_owner_context
 from app.db.repositories.initiatives import (
     create_initiative as repo_create_initiative,
     list_active_initiatives as repo_list_active_initiatives,
+    update_initiative_status as repo_update_initiative_status,
 )
 from app.schemas.common import serialize_tags
-from app.schemas.initiative import InitiativeCreate
+from app.schemas.initiative import InitiativeCreate, InitiativeStatusUpdate
 
 logger = logging.getLogger(__name__)
 
@@ -33,3 +34,9 @@ def create_initiative(db: Session, payload: InitiativeCreate):
 
 def list_active_initiatives(db: Session):
     return repo_list_active_initiatives(db)
+
+
+def update_initiative_status(db: Session, item_id: str, payload: InitiativeStatusUpdate):
+    data = payload.model_dump()
+    owner_context = resolve_owner_context(owner_id=data["owner_id"])
+    return repo_update_initiative_status(db, item_id, data["status"], owner_context.owner_id)

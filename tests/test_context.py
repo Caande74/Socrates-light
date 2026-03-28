@@ -650,6 +650,150 @@ def test_feedback_retrieval_does_not_return_weak_generic_false_positive():
     assert alfa_response.json()["feedback"] == []
 
 
+def test_context_retrieves_needs_review_but_not_inactive_feedback():
+    client = _client()
+    owner_id = OWNER_A_ID
+
+    active_response = client.post(
+        "/feedback",
+        headers=API_HEADERS,
+        json={
+            "owner_id": owner_id,
+            "content": "status lifecycle active feedback",
+            "title": "status lifecycle active feedback",
+            "status": "active",
+        },
+    )
+    review_response = client.post(
+        "/feedback",
+        headers=API_HEADERS,
+        json={
+            "owner_id": owner_id,
+            "content": "status lifecycle review feedback",
+            "title": "status lifecycle review feedback",
+            "status": "needs_review",
+        },
+    )
+    inactive_response = client.post(
+        "/feedback",
+        headers=API_HEADERS,
+        json={
+            "owner_id": owner_id,
+            "content": "status lifecycle inactive feedback",
+            "title": "status lifecycle inactive feedback",
+            "status": "inactive",
+        },
+    )
+
+    assert active_response.status_code == 200
+    assert review_response.status_code == 200
+    assert inactive_response.status_code == 200
+
+    context_response = client.post(
+        "/context/get",
+        headers=API_HEADERS,
+        json={
+            "query": "status lifecycle feedback",
+            "owner_id": owner_id,
+            "mode": "analysis",
+            "role": "operator",
+        },
+    )
+
+    assert context_response.status_code == 200
+    feedback_items = context_response.json()["feedback"]
+    feedback_ids = {item["id"] for item in feedback_items}
+
+    assert active_response.json()["id"] in feedback_ids
+    assert review_response.json()["id"] in feedback_ids
+    assert inactive_response.json()["id"] not in feedback_ids
+
+
+def test_context_ranks_active_feedback_ahead_of_equivalent_needs_review_item():
+    client = _client()
+    owner_id = OWNER_B_ID
+    query = "equivalent feedback ranking token"
+
+    active_response = client.post(
+        "/feedback",
+        headers=API_HEADERS,
+        json={
+            "owner_id": owner_id,
+            "content": query,
+            "title": query,
+            "status": "active",
+        },
+    )
+    review_response = client.post(
+        "/feedback",
+        headers=API_HEADERS,
+        json={
+            "owner_id": owner_id,
+            "content": f"{query} review variant",
+            "title": query,
+            "status": "needs_review",
+        },
+    )
+
+    assert active_response.status_code == 200
+    assert review_response.status_code == 200
+
+    context_response = client.post(
+        "/context/get",
+        headers=API_HEADERS,
+        json={"query": query, "owner_id": owner_id},
+    )
+
+    assert context_response.status_code == 200
+    feedback_items = context_response.json()["feedback"]
+
+    assert len(feedback_items) >= 2
+    assert feedback_items[0]["id"] == active_response.json()["id"]
+    assert feedback_items[1]["id"] == review_response.json()["id"]
+
+
+def test_context_excludes_invalid_assumptions():
+    client = _client()
+    owner_id = RETRIEVAL_OWNER_ID
+    query = "falsified lifecycle assumption"
+
+    valid_response = client.post(
+        "/assumptions",
+        headers=API_HEADERS,
+        json={
+            "owner_id": owner_id,
+            "content": query,
+            "title": query,
+            "status": "active",
+        },
+    )
+    invalid_response = client.post(
+        "/assumptions",
+        headers=API_HEADERS,
+        json={
+            "owner_id": owner_id,
+            "content": query,
+            "title": query,
+            "status": "invalid",
+        },
+    )
+
+    assert valid_response.status_code == 200
+    assert invalid_response.status_code == 200
+
+    context_response = client.post(
+        "/context/get",
+        headers=API_HEADERS,
+        json={"query": query, "owner_id": owner_id},
+    )
+
+    assert context_response.status_code == 200
+    assumption_ids = {item["id"] for item in context_response.json()["assumptions"]}
+
+    assert valid_response.json()["id"] in assumption_ids
+    assert invalid_response.json()["id"] not in assumption_ids
+
+
 def test_runtime_owner_migration_moves_only_known_legacy_identity_rows():
     with SessionLocal() as db:
         db.add(

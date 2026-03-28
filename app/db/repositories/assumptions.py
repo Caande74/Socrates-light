@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 from app.db.models.assumption import Assumption
+from app.db.repositories.common import update_item_status
 
 
 def create_assumption(db: Session, payload: dict) -> Assumption:
@@ -19,3 +20,12 @@ def list_active_assumptions(db: Session, owner_id: str | None = None) -> list[As
     if owner_id is not None:
         query = query.filter(Assumption.owner_id == owner_id)
     return query.all()
+
+
+def update_assumption_status(
+    db: Session,
+    item_id: str,
+    status: str,
+    owner_id: str | None = None,
+) -> Assumption | None:
+    return update_item_status(db, Assumption, item_id, status, owner_id)
