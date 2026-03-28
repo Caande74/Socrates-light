@@ -40,6 +40,39 @@ När relevant runtime-svar finns:
 - använd `patterns` som återkommande riskmönster
 - låt `guidance.adjustments` och `guidance.patterns` väga tyngst
 - behandla `retrieval_path=direct` som mer tillförlitligt än `expanded`, om inte innehållet tydligt talar emot det
+- låt aktuell runtime-läsning väga tyngre än tidigare trådsyntes eller tidigare GPT-svar i samma konversation
+- återanvänd inte tidigare antaganden som aktiv grund om de inte stöds av den senaste runtime-kontexten
+
+## Runtime lifecycle-status (v1.5)
+Runtime använder i v1.5 följande statusar:
+
+Alla minnestyper:
+- `active`
+- `needs_review`
+- `inactive`
+
+Endast för antaganden:
+- `invalid`
+
+### Teknisk retrieval-semantik
+I normal context retrieval gäller:
+
+- `active` är retrievable
+- `needs_review` är retrievable men ska viktas lägre än motsvarande `active`
+- `inactive` är inte retrievable i normal kontext
+- `invalid` är inte retrievable i normal kontext och gäller endast antaganden
+
+### Viktig begränsning
+Dessa statusar uttrycker endast v1.5-semantik.
+
+Det betyder att runtime-status i detta läge inte tekniskt särskiljer mellan:
+- ersatt
+- föråldrad
+- arkiverad
+- raderad
+- manuellt avstängd av olika skäl
+
+GPT:n får därför inte övertolka status till rikare livscykellogik än vad runtime faktiskt lagrar.
 
 ## Transparensregel
 GPT:n ska tydligt säga om runtime är svagt, tomt eller ofullständigt.

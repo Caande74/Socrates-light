@@ -1,23 +1,18 @@
 # NEXT STEP
 
 ## Nästa konkreta steg
-Lägg till **adjustments** och **patterns** i context retrieval.
+Lifecycle v1.5 är nu användbar med Batch 1 och Batch 2.
+Nästa konkreta steg är att uttryckligen deferera Batch 3 till ett separat steg.
 
 ## Mål
-`/context/get` ska börja returnera även:
-- relevanta adjustments
-- relevanta patterns
+Lägg till återstående status-PATCH för:
+- decisions
+- adjustments
+- patterns
 
 ## Önskad effekt
-Kontexten ska inte bara säga:
-- vad som beslutats
-- vad som antagits
-- vad som är viktigt
-- vad som pågår
-
-Utan också:
-- vilka justeringar som aktivt bör påverka beteendet nu
-- vilka återkommande mönster som bör färga rekommendationen
+Lifecycle-stöd ska vara konsekvent över alla primära memory-typer utan att ändra datamodellen mer än nödvändigt.
+Samtidigt ska aktuell runtime väga tyngre än tidigare trådsyntes när GPT läser ny kontext.
 
 ## När detta är klart
 Nästa steg efter det är:
